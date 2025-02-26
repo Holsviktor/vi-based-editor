@@ -44,14 +44,13 @@ impl Text {
 
     }
 
-    pub fn find_line_number(&mut self, index : usize) -> Result<usize,&str> {
+    pub fn find_line_number(&self, index : usize) -> Result<usize,&str> {
         let mut line_count : usize = 1;
         let mut total_length : usize = 0;
 
         if self.text.chars().count() - 1 < index as usize {
             return Err("Index must be within string");
         }
-        self.refresh_line_lengths();
 
         for length in &self.line_lengths {
             total_length += length + 1;
@@ -64,12 +63,20 @@ impl Text {
         return Ok(line_count);
     }
 
-    pub fn get_line_length(&mut self, line_no : usize) -> usize {
-        self.refresh_line_lengths();
+    pub fn get_line_length(&self, line_no : usize) -> usize {
         return match self.line_lengths.get(line_no) {
             None => 0,
             Some(l) => *l,
         }
+    }
+
+    pub fn get_string_index(&self, line_no : usize, xoffset : usize) -> usize {
+        let mut idx : usize = 0;
+        for line_length in &self.line_lengths[0..line_no] {
+            idx += line_length + 1;
+        }
+        idx += xoffset;
+        idx
     }
 
     pub fn write_char<'a>(&mut self, c : &'a str, idx : usize) -> Result<&'a str, &'a str> {
@@ -162,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_line_length_getter() {
-        let mut t : Text = Text::new("This\nIs\nSome\nText.");
+        let t : Text = Text::new("This\nIs\nSome\nText.");
 
         assert_eq!(t.get_line_length(0),4);
         assert_eq!(t.get_line_length(1),2);
@@ -173,11 +180,50 @@ mod tests {
 
     #[test]
     fn test_check_line_count() {
-        let mut t : Text = Text::new("This\nIs\nSome\nText.");
+        let t : Text = Text::new("This\nIs\nSome\nText.");
 
+        assert_eq!(t.find_line_number(0),Ok(1));
         assert_eq!(t.find_line_number(1),Ok(1));
+        assert_eq!(t.find_line_number(2),Ok(1));
+        assert_eq!(t.find_line_number(3),Ok(1));
+        assert_eq!(t.find_line_number(4),Ok(1));
         assert_eq!(t.find_line_number(5),Ok(2));
+        assert_eq!(t.find_line_number(6),Ok(2));
+        assert_eq!(t.find_line_number(7),Ok(2));
         assert_eq!(t.find_line_number(8),Ok(3));
+        assert_eq!(t.find_line_number(9),Ok(3));
+        assert_eq!(t.find_line_number(10),Ok(3));
+        assert_eq!(t.find_line_number(11),Ok(3));
+        assert_eq!(t.find_line_number(12),Ok(3));
         assert_eq!(t.find_line_number(13),Ok(4));
+        assert_eq!(t.find_line_number(14),Ok(4));
+        assert_eq!(t.find_line_number(15),Ok(4));
+    }
+    #[test]
+    fn test_get_index_start_of_line() {
+        let t : Text = Text::new("This\nIs\nSome\nText.");
+
+        assert_eq!(t.get_string_index(0,0),0);
+        assert_eq!(t.get_string_index(1,0),5);
+        assert_eq!(t.get_string_index(2,0),8);
+        assert_eq!(t.get_string_index(3,0),13);
+    }
+    #[test]
+    fn test_get_index_middle_of_line() {
+        let t : Text = Text::new("This\nIs\nSome\nText.");
+
+        assert_eq!(t.get_string_index(0,1),1);
+        assert_eq!(t.get_string_index(1,1),6);
+        assert_eq!(t.get_string_index(2,2),10);
+        assert_eq!(t.get_string_index(3,3),16);
+    }
+    #[test]
+    fn test_get_index_end_of_line() {
+        let t : Text = Text::new("This\nIs\nSome\nText.");
+
+        assert_eq!(t.get_string_index(0,4),4);
+        assert_eq!(t.get_string_index(1,3),8);
+        assert_eq!(t.get_string_index(2,4),12);
+        assert_eq!(t.get_string_index(3,5),18);
     }
 }
