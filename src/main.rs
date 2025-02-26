@@ -14,8 +14,10 @@ const INSERT: i8 = 1;
 fn handle_input_normal(code : KeyCode) -> i8 {
     match code {
         KeyCode::Char('q') => -1,
-        KeyCode::Char('i') => return INSERT,
-
+        KeyCode::Char('i') => {
+            stdout().execute(EnableBlinking).unwrap();
+            return INSERT
+        }
         KeyCode::Char('h') => {
             stdout().execute(MoveLeft(1)).unwrap();
             return NORMAL;
@@ -38,12 +40,20 @@ fn handle_input_normal(code : KeyCode) -> i8 {
 
 fn handle_input_insert(code : KeyCode, buffer : &mut String) -> i8 {
     match code {
-        KeyCode::Esc => return NORMAL,
+        KeyCode::Esc => {
+            stdout().execute(DisableBlinking).unwrap();
+            return NORMAL
+        }
+        KeyCode::Enter => {
+            buffer.push('\n');
+            println!();
+            stdout().flush().unwrap();
+
+        }
         KeyCode::Char(c) => {
             buffer.push(c);
             print!("{}",c);
-            //stdout.flush.unwrap();
-            stdout().execute(MoveRight(1)).unwrap();
+            stdout().flush().unwrap();
         },
         _ => return INSERT,
 
@@ -54,12 +64,15 @@ fn handle_input_insert(code : KeyCode, buffer : &mut String) -> i8 {
 
 fn main() {
     let mut stdout = stdout();
-    let mut buffer = String::new();
+    //let mut buffer: Vec<char> = Vec::new();
+    //let mut line_lengths: Vec<i16> = vec![0];
+    let mut buffer: String = String::new();
 
     terminal::enable_raw_mode().expect("Failed ot enable raw mode");
     stdout.execute(terminal::Clear(ClearType::All)).unwrap();
-    MoveTo(0,0);
+    //let (width, height) = terminal::size().unwrap();
     println!("Press q to exit.");
+    stdout.execute(MoveTo(0,0)).unwrap();
 
     // Main loop
     let mut mode = NORMAL;
@@ -67,8 +80,12 @@ fn main() {
         if event::poll(std::time::Duration::from_millis(500)).unwrap() {
             if let event::Event::Key(KeyEvent {code, ..}) = event::read().unwrap() {
                 mode = match mode {
-                    NORMAL => handle_input_normal(code),
-                    INSERT => handle_input_insert(code, &mut buffer),
+                    NORMAL => {
+                        handle_input_normal(code)
+                    },
+                    INSERT => {
+                        handle_input_insert(code, &mut buffer)
+                    },
                     
                     _ => continue,
                 }
