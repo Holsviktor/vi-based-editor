@@ -6,6 +6,7 @@ use crossterm::{
     cursor::{DisableBlinking, EnableBlinking, MoveTo, RestorePosition, SavePosition, MoveLeft, MoveDown, MoveUp, MoveRight},
 };
 use std::io::{stdout, Write};
+mod text;
 
 const QUIT: i8 = -1;
 const NORMAL: i8 = 0;

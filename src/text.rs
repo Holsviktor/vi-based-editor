@@ -3,7 +3,7 @@ use std::fmt;
 struct Text {
     text : String,              // Text being edited
     line_lengths : Vec<usize>,    // Length of each line, not counting newlines
-    lengths_dirty : bool        // True if text has been edited since line_length was calculated
+    dirty : bool        // True if text has been edited since line_length was calculated
                                 // last
 }
 
@@ -12,13 +12,13 @@ impl Text {
         let mut t = Text {
             text : String::from(s),
             line_lengths : vec![0],
-            lengths_dirty : true,
+            dirty : true,
         };
         t.refresh_line_lengths();
         return t;
     }
     fn refresh_line_lengths(&mut self) {
-        if self.lengths_dirty {
+        if self.dirty {
             let mut line_count : usize = 1;
             let mut line_length : usize = 0;
 
@@ -39,7 +39,7 @@ impl Text {
                 self.line_lengths.push(0);
             }
             self.line_lengths[(line_count - 1) as usize] = line_length;
-            self.lengths_dirty = false;
+            self.dirty = false;
         }
 
     }
@@ -63,6 +63,7 @@ impl Text {
         }
         return Ok(line_count);
     }
+
     pub fn get_line_length(&mut self, line_no : usize) -> usize {
         self.refresh_line_lengths();
         return match self.line_lengths.get(line_no) {
@@ -71,21 +72,21 @@ impl Text {
         }
     }
 
-    pub fn write_char<'a>(&mut self, c : &'a str) -> Result<&'a str, &'a str> {
+    pub fn write_char<'a>(&mut self, c : &'a str, idx : usize) -> Result<&'a str, &'a str> {
         match c.chars().count() {
             1 => {
-                self.text.push_str(&c);
+                self.text.insert_str(idx, &c);
                 match c {
                     "\n" => {
-                        self.line_lengths.push(0);
-                        self.lengths_dirty = true;
+                        let current_line = self.find_line_number(idx).ok().unwrap() - 1;
+                        self.line_lengths.insert(current_line, 0);
+                        self.dirty = true;
                         self.refresh_line_lengths();
                     }
                     _ => {
-                        if !self.lengths_dirty {
+                        if !self.dirty {
                             // Optimization
-                            let index = self.text.chars().count() - 1;
-                            let current_line = self.find_line_number(index).ok().unwrap();
+                            let current_line = self.find_line_number(idx).ok().unwrap();
                             self.line_lengths[current_line - 1] += 1;
                         }
                     }
@@ -121,7 +122,36 @@ mod tests {
     fn test_append_character() {
         let mut t : Text = Text::new("Some text");
 
-        match t.write_char(".") {
+        match t.write_char(".", 9) {
+            Ok(_) => print!(""),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "Some text.");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+    }
+
+    #[test]
+    fn test_insert_characters() {
+        let mut t : Text = Text::new("ometxt.");
+
+        match t.write_char("S", 0) {
+            Ok(_) => print!(""),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "Sometxt.");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+
+        match t.write_char(" ", 4) {
+            Ok(_) => print!(""),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "Some txt.");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+
+        match t.write_char("e", 6) {
             Ok(_) => print!(""),
             Err(e) => eprintln!("{}", e),
         }
@@ -140,6 +170,7 @@ mod tests {
         assert_eq!(t.get_line_length(3),5);
         assert_eq!(t.get_line_length(4),0);
     }
+
     #[test]
     fn test_check_line_count() {
         let mut t : Text = Text::new("This\nIs\nSome\nText.");
