@@ -12,54 +12,53 @@ const NORMAL: i8 = 0;
 const INSERT: i8 = 1;
 
 fn handle_input_normal(code : KeyCode) -> i8 {
-    match code {
+    return match code {
         KeyCode::Char('q') => -1,
         KeyCode::Char('i') => {
             stdout().execute(EnableBlinking).unwrap();
-            return INSERT
+            INSERT
         }
         KeyCode::Char('h') => {
             stdout().execute(MoveLeft(1)).unwrap();
-            return NORMAL;
+            NORMAL
         },
         KeyCode::Char('j') => {
             stdout().execute(MoveDown(1)).unwrap();
-            return NORMAL;
+            NORMAL
         },
         KeyCode::Char('k') => {
             stdout().execute(MoveUp(1)).unwrap();
-            return NORMAL;
+            NORMAL
         },
         KeyCode::Char('l') => {
             stdout().execute(MoveRight(1)).unwrap();
-            return NORMAL;
+            NORMAL
         },
-        _ => return NORMAL,
+        _ => NORMAL
     }
 }
 
 fn handle_input_insert(code : KeyCode, buffer : &mut String) -> i8 {
-    match code {
+    return match code {
         KeyCode::Esc => {
             stdout().execute(DisableBlinking).unwrap();
-            return NORMAL
+            NORMAL
         }
         KeyCode::Enter => {
             buffer.push('\n');
             println!();
             stdout().flush().unwrap();
+            INSERT
 
         }
         KeyCode::Char(c) => {
             buffer.push(c);
             print!("{}",c);
             stdout().flush().unwrap();
+            INSERT
         },
-        _ => return INSERT,
-
-
+        _ => INSERT
     }
-    return INSERT;
 }
 
 fn main() {
@@ -91,11 +90,9 @@ fn main() {
                 }
             }
         }
-
         if mode == QUIT {
             break;
         }
-        
     }
 
     terminal::disable_raw_mode().expect("Failed to disable raw mode");
