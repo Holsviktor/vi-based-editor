@@ -44,7 +44,7 @@ impl Text {
 
     }
 
-    fn find_line_number(&mut self, index : usize) -> Result<usize,&str> {
+    pub fn find_line_number(&mut self, index : usize) -> Result<usize,&str> {
         let mut line_count : usize = 1;
         let mut total_length : usize = 0;
 
@@ -63,8 +63,15 @@ impl Text {
         }
         return Ok(line_count);
     }
+    pub fn get_line_length(&mut self, line_no : usize) -> usize {
+        self.refresh_line_lengths();
+        return match self.line_lengths.get(line_no) {
+            None => 0,
+            Some(l) => *l,
+        }
+    }
 
-    fn write_char<'a>(&mut self, c : &'a str) -> Result<&'a str, &'a str> {
+    pub fn write_char<'a>(&mut self, c : &'a str) -> Result<&'a str, &'a str> {
         match c.chars().count() {
             1 => {
                 self.text.push_str(&c);
@@ -77,7 +84,8 @@ impl Text {
                     _ => {
                         if !self.lengths_dirty {
                             // Optimization
-                            let current_line = self.find_line_number(self.text.chars().count() - 1).ok().unwrap();
+                            let index = self.text.chars().count() - 1;
+                            let current_line = self.find_line_number(index).ok().unwrap();
                             self.line_lengths[current_line - 1] += 1;
                         }
                     }
@@ -122,6 +130,16 @@ mod tests {
         assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
     }
 
+    #[test]
+    fn test_line_length_getter() {
+        let mut t : Text = Text::new("This\nIs\nSome\nText.");
+
+        assert_eq!(t.get_line_length(0),4);
+        assert_eq!(t.get_line_length(1),2);
+        assert_eq!(t.get_line_length(2),4);
+        assert_eq!(t.get_line_length(3),5);
+        assert_eq!(t.get_line_length(4),0);
+    }
     #[test]
     fn test_check_line_count() {
         let mut t : Text = Text::new("This\nIs\nSome\nText.");
