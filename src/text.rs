@@ -1,9 +1,9 @@
 use std::fmt;
 
-struct Text {
+pub struct Text {
     text : String,              // Text being edited
-    line_lengths : Vec<usize>,    // Length of each line, not counting newlines
-    dirty : bool        // True if text has been edited since line_length was calculated
+    line_lengths : Vec<usize>,  // Length of each line, not counting newlines
+    dirty : bool                // True if text has been edited since line_length was calculated
                                 // last
 }
 
@@ -41,7 +41,6 @@ impl Text {
             self.line_lengths[(line_count - 1) as usize] = line_length;
             self.dirty = false;
         }
-
     }
 
     pub fn find_line_number(&self, index : usize) -> Result<usize,&str> {
@@ -54,7 +53,6 @@ impl Text {
 
         for length in &self.line_lengths {
             total_length += length + 1;
-            eprintln!("l: {}  i: {}", total_length, index);
             if total_length > index {
                 return Ok(line_count);
             }
@@ -77,6 +75,18 @@ impl Text {
         }
         idx += xoffset;
         idx
+    }
+
+    pub fn size(&self) -> usize {
+        return self.text.chars().count();
+    }
+    
+    pub fn line_count(&self) -> u16 {
+        return self.line_lengths.len() as u16;
+    }
+
+    pub fn get_text(&self) -> &str {
+        return &self.text
     }
 
     pub fn write_char<'a>(&mut self, c : &'a str, idx : usize) -> Result<&'a str, &'a str> {
@@ -125,6 +135,15 @@ mod tests {
         assert_eq!(format!("{}", t), "Some text");
     }
 
+    #[test]
+    fn test_get_line_count() {
+        let t : Text = Text::new("Some text");
+        let t2 : Text = Text::new("Some\ntext");
+        let t3 : Text = Text::new("Some\ntext\n");
+        assert_eq!(t.line_count(), 1);
+        assert_eq!(t2.line_count(), 2);
+        assert_eq!(t3.line_count(), 3);
+    }
     #[test]
     fn test_append_character() {
         let mut t : Text = Text::new("Some text");

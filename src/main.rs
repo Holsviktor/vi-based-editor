@@ -6,13 +6,52 @@ use crossterm::{
     cursor::{DisableBlinking, EnableBlinking, MoveTo, RestorePosition, SavePosition, MoveLeft, MoveDown, MoveUp, MoveRight},
 };
 use std::io::{stdout, Write};
+use std::io;
 mod text;
+use text::Text;
 
 const QUIT: i8 = -1;
 const NORMAL: i8 = 0;
 const INSERT: i8 = 1;
 
-fn handle_input_normal(code : KeyCode) -> i8 {
+struct RawModeGuard;
+impl RawModeGuard {
+    fn new() -> io::Result<Self> {
+        terminal::enable_raw_mode()?;
+        Ok(Self)
+    }
+}
+impl Drop for RawModeGuard {
+    fn drop(&mut self) {
+        terminal::disable_raw_mode();
+    }
+}
+
+fn refresh_text(buffer : &mut Text) {
+    stdout().execute(SavePosition).unwrap();
+    stdout().execute(terminal::Clear(ClearType::All)).unwrap();
+    stdout().execute(MoveTo(0,0)).unwrap();
+    for line in buffer.get_text().lines() {
+        print!("{}", line);
+        stdout().execute(MoveDown(1)).unwrap();
+        stdout().execute(MoveLeft(line.chars().count() as u16)).unwrap();
+
+    }
+    stdout().execute(RestorePosition).unwrap();
+}
+
+fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
+    let x : u16; let y : u16;
+    match crossterm::cursor::position() {
+        Ok((col, row)) => {
+            x = col; y = row;
+        }
+        Err(_) => {
+            eprintln!("Error getting cursor position");
+            return NORMAL;
+        }
+    }
+
     return match code {
         KeyCode::Char('q') => -1,
         KeyCode::Char('i') => {
@@ -20,40 +59,78 @@ fn handle_input_normal(code : KeyCode) -> i8 {
             INSERT
         }
         KeyCode::Char('h') => {
-            stdout().execute(MoveLeft(1)).unwrap();
+            if x >= 1 {
+                stdout().execute(MoveLeft(1)).unwrap();
+            }
             NORMAL
         },
         KeyCode::Char('j') => {
-            stdout().execute(MoveDown(1)).unwrap();
+            if buffer.line_count() - 1 > y {
+                stdout().execute(MoveDown(1)).unwrap();
+                if x >= buffer.get_line_length(1+y as usize) as u16 && x >= 1 {
+                    stdout().execute(MoveTo(buffer.get_line_length(1+y as usize) as u16 - 1, y+1)).unwrap();
+                }
+            }
             NORMAL
         },
         KeyCode::Char('k') => {
-            stdout().execute(MoveUp(1)).unwrap();
+            if y > 0 {
+                stdout().execute(MoveUp(1)).unwrap();
+                if x >= buffer.get_line_length(y as usize - 1) as u16 {
+                    stdout().execute(MoveTo(buffer.get_line_length(y as usize - 1)as u16 - 1, y-1)).unwrap();
+                }
+            }
             NORMAL
         },
         KeyCode::Char('l') => {
-            stdout().execute(MoveRight(1)).unwrap();
+            if x + 1 < buffer.get_line_length(y as usize) as u16 {
+                stdout().execute(MoveRight(1)).unwrap();
+            }
+            NORMAL
+        },
+        KeyCode::Char('r') => {
+            refresh_text(buffer);
             NORMAL
         },
         _ => NORMAL
     }
 }
 
-fn handle_input_insert(code : KeyCode, buffer : &mut String) -> i8 {
+fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
+    let x : u16; let y : u16;
+    match crossterm::cursor::position() {
+        Ok((col, row)) => {
+            x = col; y = row;
+        }
+        Err(_) => {
+            eprintln!("Error getting cursor position");
+            return INSERT;
+        }
+    }
+    let idx : usize = buffer.get_string_index(y as usize, x as usize);
+
     return match code {
         KeyCode::Esc => {
             stdout().execute(DisableBlinking).unwrap();
             NORMAL
         }
         KeyCode::Enter => {
-            buffer.push('\n');
-            println!();
+            if buffer.size() < idx {
+                return INSERT;
+            }
+            buffer.write_char("\n", idx);
+            refresh_text(buffer);
+            //print!("\n");
+            stdout().execute(MoveTo(0, y + 1)).unwrap();
             stdout().flush().unwrap();
             INSERT
 
         }
         KeyCode::Char(c) => {
-            buffer.push(c);
+            if buffer.size() < idx {
+                return INSERT;
+            }
+            buffer.write_char(&c.to_string(), idx);
             print!("{}",c);
             stdout().flush().unwrap();
             INSERT
@@ -64,11 +141,8 @@ fn handle_input_insert(code : KeyCode, buffer : &mut String) -> i8 {
 
 fn main() {
     let mut stdout = stdout();
-    //let mut buffer: Vec<char> = Vec::new();
-    //let mut line_lengths: Vec<i16> = vec![0];
-    let mut buffer: String = String::new();
-
-    terminal::enable_raw_mode().expect("Failed ot enable raw mode");
+    let mut buffer: Text = Text::new("");
+    let _guard = RawModeGuard::new();
     stdout.execute(terminal::Clear(ClearType::All)).unwrap();
     //let (width, height) = terminal::size().unwrap();
     println!("Press q to exit.");
@@ -81,7 +155,7 @@ fn main() {
             if let event::Event::Key(KeyEvent {code, ..}) = event::read().unwrap() {
                 mode = match mode {
                     NORMAL => {
-                        handle_input_normal(code)
+                        handle_input_normal(code, &mut buffer)
                     },
                     INSERT => {
                         handle_input_insert(code, &mut buffer)
@@ -95,8 +169,6 @@ fn main() {
             break;
         }
     }
-
-    terminal::disable_raw_mode().expect("Failed to disable raw mode");
     stdout.execute(terminal::Clear(ClearType::All)).unwrap();
     MoveTo(0,0);
     println!("Exiting...");
