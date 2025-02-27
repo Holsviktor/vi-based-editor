@@ -6,9 +6,12 @@ use crossterm::{
     cursor::{DisableBlinking, EnableBlinking, MoveTo, RestorePosition, SavePosition, MoveLeft, MoveDown, MoveUp, MoveRight, SetCursorStyle},
 };
 use std::io::{stdout, Write};
+use std::fs::{self,File};
+use std::io::prelude::*;
 use std::io;
 mod text;
 use text::Text;
+use std::env;
 
 const QUIT: i8 = -1;
 const NORMAL: i8 = 0;
@@ -27,7 +30,7 @@ impl Drop for RawModeGuard {
     }
 }
 
-fn refresh_text(buffer : &mut Text) {
+fn refresh_text(buffer : &Text) {
     stdout().execute(SavePosition).unwrap();
     stdout().execute(terminal::Clear(ClearType::All)).unwrap();
     stdout().execute(MoveTo(0,0)).unwrap();
@@ -35,8 +38,10 @@ fn refresh_text(buffer : &mut Text) {
         print!("{}", line);
         stdout().execute(MoveDown(1)).unwrap();
         stdout().execute(MoveLeft(line.chars().count() as u16)).unwrap();
-
     }
+    //let (width, height) = terminal::size().ok().unwrap();
+    //stdout().execute(MoveTo(0, height)).unwrap();
+    //println!("Press q to exit.");
     stdout().execute(RestorePosition).unwrap();
 }
 
@@ -95,7 +100,7 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
             NORMAL
         },
         KeyCode::Char('r') => {
-            refresh_text(buffer);
+            refresh_text(&buffer);
             NORMAL
         },
         _ => NORMAL
@@ -130,7 +135,7 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
                 return INSERT;
             }
             buffer.write_char("\n", idx);
-            refresh_text(buffer);
+            refresh_text(&buffer);
             //print!("\n");
             stdout().execute(MoveTo(0, y + 1)).unwrap();
             stdout().flush().unwrap();
@@ -150,14 +155,26 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
     }
 }
 
-fn main() {
+fn main() -> std::io::Result<()> {
     let mut stdout = stdout();
-    let mut buffer: Text = Text::new("");
     let _guard = RawModeGuard::new();
+    let args : Vec<String> = env::args().collect();
+    let mut buffer: Text;
+
+    if args.len() > 1 {
+        let mut file = File::open(args.get(1).unwrap())?;
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)?;
+            buffer = Text::new(&contents);
+    }
+    else {
+        buffer = Text::new("Usage: editor {filename}");
+    }
+
     stdout.execute(terminal::Clear(ClearType::All)).unwrap();
     //let (width, height) = terminal::size().unwrap();
-    println!("Press q to exit.");
     stdout.execute(MoveTo(0,0)).unwrap();
+    refresh_text(&buffer);
 
     // Main loop
     let mut mode = NORMAL;
@@ -183,4 +200,10 @@ fn main() {
     stdout.execute(terminal::Clear(ClearType::All)).unwrap();
     MoveTo(0,0);
     println!("Exiting...");
+    if args.len() > 1 {
+        //let mut file = File::create(format!("{}{}",args.get(1).unwrap(), ".new"))?;
+        //file.write_all(buffer.get_text());
+        fs::write(format!("{}{}", args.get(1).unwrap(), ".new"), buffer.get_text());
+    }
+    return Ok(());
 }
