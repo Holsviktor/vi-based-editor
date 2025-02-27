@@ -3,8 +3,6 @@ use std::fmt;
 pub struct Text {
     text : String,              // Text being edited
     line_lengths : Vec<usize>,  // Length of each line, not counting newlines
-    dirty : bool                // True if text has been edited since line_length was calculated
-                                // last
 }
 
 impl Text {
@@ -12,35 +10,37 @@ impl Text {
         let mut t = Text {
             text : String::from(s),
             line_lengths : vec![0],
-            dirty : true,
         };
         t.refresh_line_lengths();
         return t;
     }
     fn refresh_line_lengths(&mut self) {
-        if self.dirty {
-            let mut line_count : usize = 1;
-            let mut line_length : usize = 0;
+        let mut line_count : usize = 1;
+        let mut line_length : usize = 0;
 
-            for c in self.text.chars() {
-                match c {
-                    '\n' => {
-                        if self.line_lengths.len() < line_count as usize {
-                            self.line_lengths.push(0);
-                        }
-                        self.line_lengths[(line_count - 1) as usize] = line_length;
-                        line_count += 1;
-                        line_length = 0;
+        for c in self.text.chars() {
+            match c {
+                '\n' => {
+                    if self.line_lengths.len() < line_count as usize {
+                        self.line_lengths.push(0);
                     }
-                    _ => line_length += 1, // Assume only normal chars for now
+                    self.line_lengths[(line_count - 1) as usize] = line_length;
+                    line_count += 1;
+                    line_length = 0;
                 }
+                _ => line_length += 1, // Assume only normal chars for now
             }
-            if self.line_lengths.len() < line_count as usize {
-                self.line_lengths.push(0);
-            }
-            self.line_lengths[(line_count - 1) as usize] = line_length;
-            self.dirty = false;
         }
+
+        if self.line_lengths.len() < line_count as usize {
+            self.line_lengths.push(0);
+        }
+        self.line_lengths[(line_count - 1) as usize] = line_length;
+
+        if self.line_lengths.len() > line_count as usize {
+            self.line_lengths[line_count] = 0;
+        }
+
     }
 
     pub fn find_line_number(&self, index : usize) -> Result<usize,&str> {
@@ -66,6 +66,18 @@ impl Text {
             None => 0,
             Some(l) => *l,
         }
+    }
+    pub fn get_line(&self, line_no : usize) -> &str {
+        if line_no >= self.line_lengths.len() {
+            return "";
+        }
+        // Find index of substring
+        let mut start_idx : usize = 0;
+        for linelength in &self.line_lengths[..line_no] {
+            start_idx += linelength + 1;            
+        }
+        let end_idx : usize = start_idx + self.line_lengths[line_no];
+        return &self.text[start_idx..end_idx]
     }
 
     pub fn get_string_index(&self, line_no : usize, xoffset : usize) -> usize {
@@ -97,15 +109,12 @@ impl Text {
                     "\n" => {
                         let current_line = self.find_line_number(idx).ok().unwrap() - 1;
                         self.line_lengths.insert(current_line, 0);
-                        self.dirty = true;
                         self.refresh_line_lengths();
                     }
                     _ => {
-                        if !self.dirty {
-                            // Optimization
-                            let current_line = self.find_line_number(idx).ok().unwrap();
-                            self.line_lengths[current_line - 1] += 1;
-                        }
+                        // Optimization
+                        let current_line = self.find_line_number(idx).ok().unwrap();
+                        self.line_lengths[current_line - 1] += 1;
                     }
                 }
                 Ok(c)
@@ -113,6 +122,21 @@ impl Text {
             0 => Err("Cannot push empty string."),
             _ => Err("Cannot push multiple chars."),
         }
+    }
+    pub fn remove_at(&mut self, idx : usize) -> Result<char,&str> {
+        if idx >= self.size() {
+            return Err("cannot remove element not in string.");
+        }
+        let current_line = self.find_line_number(idx).ok().unwrap();
+        let pop_char = self.text.remove(idx);
+        if pop_char == '\n' {
+            // Optimize this later
+            self.refresh_line_lengths();
+        }
+        else {
+            self.line_lengths[current_line - 1] -= 1;
+        }
+        Ok(pop_char)
     }
 }
 
@@ -143,6 +167,12 @@ mod tests {
         assert_eq!(t.line_count(), 1);
         assert_eq!(t2.line_count(), 2);
         assert_eq!(t3.line_count(), 3);
+    }
+
+    #[test]
+    fn test_size_of_æøå_string() {
+        let t : Text = Text::new("æøå");
+        assert_eq!(t.size(),3);
     }
     #[test]
     fn test_append_character() {
@@ -184,6 +214,60 @@ mod tests {
 
         assert_eq!(format!("{}", t), "Some text.");
         assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+    }
+
+    #[test]
+    fn test_pop_character() {
+        let mut t : Text = Text::new("Some text.");
+
+        match t.remove_at(9) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "Some text");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+    }
+    #[test]
+    fn test_remove_characters() {
+        let mut t : Text = Text::new("Some text.");
+
+        match t.remove_at(0) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "ome text.");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+
+        match t.remove_at(2) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "om text.");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+
+        match t.remove_at(4) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "om txt.");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+    }
+    #[test]
+    fn test_pop_newline() {
+        let mut t : Text = Text::new("Some\ntext.");
+
+        match t.remove_at(4) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "Sometext.");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+        assert_eq!(t.line_lengths[1], 0);
     }
 
     #[test]
@@ -244,5 +328,15 @@ mod tests {
         assert_eq!(t.get_string_index(1,3),8);
         assert_eq!(t.get_string_index(2,4),12);
         assert_eq!(t.get_string_index(3,5),18);
+    }
+
+    #[test]
+    fn test_get_line() {
+        let t : Text = Text::new("This\nIs\nSome\nText.");
+        
+        assert_eq!(t.get_line(0), "This");
+        assert_eq!(t.get_line(1), "Is");
+        assert_eq!(t.get_line(2) "Some");
+        assert_eq!(t.get_line(3), "Text.");
     }
 }

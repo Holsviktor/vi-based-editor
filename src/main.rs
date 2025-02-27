@@ -77,8 +77,12 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
         KeyCode::Char('j') => {
             if buffer.line_count() - 1 > y {
                 stdout().execute(MoveDown(1)).unwrap();
-                if x >= buffer.get_line_length(1+y as usize) as u16 && x >= 1 {
-                    stdout().execute(MoveTo(buffer.get_line_length(1+y as usize) as u16 - 1, y+1)).unwrap();
+                let next_line_length = buffer.get_line_length(1+y as usize) as u16;
+                if next_line_length == 0 {
+                    stdout().execute(MoveTo(0, y+1)).unwrap();
+                }
+                else if x >= next_line_length && x >= 1 {
+                    stdout().execute(MoveTo(next_line_length - 1, y+1)).unwrap();
                 }
             }
             NORMAL
@@ -86,8 +90,12 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
         KeyCode::Char('k') => {
             if y > 0 {
                 stdout().execute(MoveUp(1)).unwrap();
-                if x >= buffer.get_line_length(y as usize - 1) as u16 {
-                    stdout().execute(MoveTo(buffer.get_line_length(y as usize - 1)as u16 - 1, y-1)).unwrap();
+                let next_line_length = buffer.get_line_length(y as usize - 1) as u16;
+                if next_line_length == 0 {
+                    stdout().execute(MoveTo(0, y - 1)).unwrap();
+                }
+                else if x >= next_line_length {
+                    stdout().execute(MoveTo(next_line_length - 1, y-1)).unwrap();
                 }
             }
             NORMAL
@@ -135,9 +143,34 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
             }
             let _ = buffer.write_char("\n", idx);
             refresh_text(&buffer);
-            //print!("\n");
             stdout().execute(MoveTo(0, y + 1)).unwrap();
             stdout().flush().unwrap();
+            INSERT
+
+        }
+        KeyCode::Backspace => {
+            if buffer.size() == 0 || idx == 0 {
+                return INSERT;
+            }
+            if x == 0 {
+                let old_prev_line_length = buffer.get_line_length(y as usize - 1) as u16;
+                let _ = buffer.remove_at(idx - 1);
+                if y == 0 {
+                    return INSERT;
+                }
+                stdout().execute(MoveTo(old_prev_line_length , y - 1)).unwrap();
+                refresh_text(&buffer);
+            }
+            else {
+                let _ = buffer.remove_at(idx - 1);
+                if x >= 1 {
+                    stdout().execute(MoveLeft(1)).unwrap();
+                    stdout().execute(SavePosition).unwrap();
+                    stdout().execute(MoveTo(0,y)).unwrap();
+                    print!("{} ", buffer.get_line(y as usize));
+                    stdout().execute(RestorePosition).unwrap();
+                }
+            }
             INSERT
 
         }
@@ -146,8 +179,22 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
                 return INSERT;
             }
             let _ = buffer.write_char(&c.to_string(), idx);
-            print!("{}",c);
-            stdout().flush().unwrap();
+            //print!("{}",c);
+            //stdout().flush().unwrap();
+            if c == '\n' {
+                stdout().execute(MoveTo(0, y+1)).unwrap();
+            }
+            else {
+                stdout().execute(MoveRight(1)).unwrap();
+            }
+            
+            stdout().execute(SavePosition).unwrap();
+            stdout().execute(MoveTo(0,y)).unwrap();
+            print!("{}", buffer.get_line(y as usize));
+            stdout().execute(RestorePosition).unwrap();
+            //stdout().execute(terminal::Clear(ClearType::All)).unwrap();
+            
+            //refresh_text(&buffer);
             INSERT
         },
         _ => INSERT
@@ -179,6 +226,7 @@ fn main() -> std::io::Result<()> {
     //let (width, height) = terminal::size().unwrap();
     stdout.execute(MoveTo(0,0)).unwrap();
     refresh_text(&buffer);
+    stdout.execute(SetCursorStyle::SteadyBlock).unwrap();
 
     // Main loop
     let mut mode = NORMAL;
@@ -203,6 +251,7 @@ fn main() -> std::io::Result<()> {
     }
     stdout.execute(terminal::Clear(ClearType::All)).unwrap();
     MoveTo(0,0);
+    drop(_guard);
     println!("Exiting...");
     if args.len() > 1 {
         //let mut file = File::create(format!("{}{}",args.get(1).unwrap(), ".new"))?;
