@@ -3,7 +3,7 @@ use crossterm::{
     execute,
     terminal::{self, ClearType},
     ExecutableCommand,
-    cursor::{DisableBlinking, EnableBlinking, MoveTo, RestorePosition, SavePosition, MoveLeft, MoveDown, MoveUp, MoveRight},
+    cursor::{DisableBlinking, EnableBlinking, MoveTo, RestorePosition, SavePosition, MoveLeft, MoveDown, MoveUp, MoveRight, SetCursorStyle},
 };
 use std::io::{stdout, Write};
 use std::io;
@@ -54,8 +54,14 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
 
     return match code {
         KeyCode::Char('q') => -1,
+        KeyCode::Char('a') => {
+            stdout().execute(MoveRight(1));
+            stdout().execute(SetCursorStyle::BlinkingBar).unwrap();
+            INSERT
+        }
+
         KeyCode::Char('i') => {
-            stdout().execute(EnableBlinking).unwrap();
+            stdout().execute(SetCursorStyle::BlinkingBar).unwrap();
             INSERT
         }
         KeyCode::Char('h') => {
@@ -111,7 +117,12 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
 
     return match code {
         KeyCode::Esc => {
-            stdout().execute(DisableBlinking).unwrap();
+            if x >= buffer.get_line_length(y as usize) as u16 {
+                if buffer.get_line_length(y as usize) > 0 {
+                    stdout().execute(MoveTo(buffer.get_line_length(y as usize) as u16 - 1, y)).unwrap();
+                }
+            }
+            stdout().execute(SetCursorStyle::SteadyBlock).unwrap();
             NORMAL
         }
         KeyCode::Enter => {
