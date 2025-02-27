@@ -1,12 +1,11 @@
 use crossterm::{
     event::{self, KeyCode, KeyEvent},
-    execute,
     terminal::{self, ClearType},
     ExecutableCommand,
-    cursor::{DisableBlinking, EnableBlinking, MoveTo, RestorePosition, SavePosition, MoveLeft, MoveDown, MoveUp, MoveRight, SetCursorStyle},
+    cursor::{MoveTo, RestorePosition, SavePosition, MoveLeft, MoveDown, MoveUp, MoveRight, SetCursorStyle},
 };
 use std::io::{stdout, Write};
-use std::fs::{self,File};
+use std::fs;
 use std::io::prelude::*;
 use std::io;
 mod text;
@@ -26,7 +25,7 @@ impl RawModeGuard {
 }
 impl Drop for RawModeGuard {
     fn drop(&mut self) {
-        terminal::disable_raw_mode();
+        let _ = terminal::disable_raw_mode();
     }
 }
 
@@ -60,7 +59,7 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
     return match code {
         KeyCode::Char('q') => -1,
         KeyCode::Char('a') => {
-            stdout().execute(MoveRight(1));
+            let _ = stdout().execute(MoveRight(1));
             stdout().execute(SetCursorStyle::BlinkingBar).unwrap();
             INSERT
         }
@@ -134,7 +133,7 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
             if buffer.size() < idx {
                 return INSERT;
             }
-            buffer.write_char("\n", idx);
+            let _ = buffer.write_char("\n", idx);
             refresh_text(&buffer);
             //print!("\n");
             stdout().execute(MoveTo(0, y + 1)).unwrap();
@@ -146,7 +145,7 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
             if buffer.size() < idx {
                 return INSERT;
             }
-            buffer.write_char(&c.to_string(), idx);
+            let _ = buffer.write_char(&c.to_string(), idx);
             print!("{}",c);
             stdout().flush().unwrap();
             INSERT
@@ -162,10 +161,15 @@ fn main() -> std::io::Result<()> {
     let mut buffer: Text;
 
     if args.len() > 1 {
-        let mut file = File::open(args.get(1).unwrap())?;
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)?;
-            buffer = Text::new(&contents);
+        let filename = args.get(1).unwrap();
+        let mut file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(filename)?; 
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+        buffer = Text::new(&contents);
     }
     else {
         buffer = Text::new("Usage: editor {filename}");
@@ -203,7 +207,7 @@ fn main() -> std::io::Result<()> {
     if args.len() > 1 {
         //let mut file = File::create(format!("{}{}",args.get(1).unwrap(), ".new"))?;
         //file.write_all(buffer.get_text());
-        fs::write(format!("{}{}", args.get(1).unwrap(), ".new"), buffer.get_text());
+        let _ = fs::write(args.get(1).unwrap(), buffer.get_text());
     }
     return Ok(());
 }
