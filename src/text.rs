@@ -67,6 +67,7 @@ impl Text {
             Some(l) => *l,
         }
     }
+
     pub fn get_line(&self, line_no : usize) -> &str {
         if line_no >= self.line_lengths.len() {
             return "";
@@ -76,17 +77,35 @@ impl Text {
         for linelength in &self.line_lengths[..line_no] {
             start_idx += linelength + 1;            
         }
-        let end_idx : usize = start_idx + self.line_lengths[line_no];
+        start_idx = self.index_to_byteoffset(start_idx).unwrap();
+        let mut end_idx : usize = start_idx;
+        if self.line_lengths[line_no] > 0 && line_no + 1 < self.line_lengths.len() {
+            end_idx += self.text[start_idx..].find('\n').unwrap();
+        }
+        else if line_no + 1 == self.line_lengths.len() {
+            return &self.text[start_idx..]
+        }
         return &self.text[start_idx..end_idx]
     }
 
     pub fn get_string_index(&self, line_no : usize, xoffset : usize) -> usize {
         let mut idx : usize = 0;
+        let offset : usize;
         for line_length in &self.line_lengths[0..line_no] {
             idx += line_length + 1;
         }
-        idx += xoffset;
-        idx
+
+        let current_line_length = self.get_line(line_no).chars().count();
+        if xoffset == current_line_length  {
+            offset = current_line_length + idx; 
+        }
+        else {
+            idx += xoffset; //self.text[idx..].chars().count(); //.char_indices().nth(xoffset).map(|(i, _)| i).unwrap();
+            offset = idx;
+            //let _ = self.index_to_byteoffset(idx)
+            //    .expect("Failed to find offset at get-string-index");
+        }
+            offset
     }
 
     pub fn size(&self) -> usize {
@@ -101,10 +120,26 @@ impl Text {
         return &self.text
     }
 
+    pub fn index_to_byteoffset(&self, n: usize) -> Option<usize> {
+        if self.size() == 0 {
+            return Some(0);
+        }
+        if self.size() > n {
+            return self.text.char_indices().nth(n).map(|(idx, _)| idx);
+        }
+        else if self.size() == n {
+            let (idx, c) = self.text.char_indices().last().unwrap();
+            return Some(idx + c.len_utf8());
+        }
+        return None;
+    }
+
     pub fn write_char<'a>(&mut self, c : &'a str, idx : usize) -> Result<&'a str, &'a str> {
         match c.chars().count() {
             1 => {
-                self.text.insert_str(idx, &c);
+                let offset : usize = self.index_to_byteoffset(idx)
+                    .expect("Failed to find offset at write-char");
+                self.text.insert_str(offset, &c);
                 match c {
                     "\n" => {
                         let current_line = self.find_line_number(idx).ok().unwrap() - 1;
@@ -128,7 +163,9 @@ impl Text {
             return Err("cannot remove element not in string.");
         }
         let current_line = self.find_line_number(idx).ok().unwrap();
-        let pop_char = self.text.remove(idx);
+        let offset : usize = self.index_to_byteoffset(idx)
+            .expect("Failed to find offset at write-char");
+        let pop_char = self.text.remove(offset);
         if pop_char == '\n' {
             // Optimize this later
             self.refresh_line_lengths();
@@ -174,6 +211,7 @@ mod tests {
         let t : Text = Text::new("æøå");
         assert_eq!(t.size(),3);
     }
+
     #[test]
     fn test_append_character() {
         let mut t : Text = Text::new("Some text");
@@ -217,6 +255,75 @@ mod tests {
     }
 
     #[test]
+    fn test_insert_æ() {
+        let mut t : Text = Text::new(", ");
+
+        match t.write_char("æ", 1) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), ",æ ");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+        }
+
+    #[test]
+    fn test_insert_after_æ() {
+        let mut t : Text = Text::new("æ, ");
+
+        match t.write_char("v",1) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "æv, ");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+    }
+
+    #[test]
+    fn test_insert_æøå() {
+        let mut t : Text = Text::new("Æ, ");
+
+        match t.write_char("v", 1) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "Æv, ");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+
+        match t.write_char("å", 4) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "Æv, å");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+
+        match t.write_char("ø", 5) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "Æv, åø");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+
+        match t.write_char("æ", 6) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+        assert_eq!(format!("{}", t), "Æv, åøæ");
+        assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
+
+        match t.write_char("v", 1) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{}", e),
+        }
+
+    }
+
+    #[test]
     fn test_pop_character() {
         let mut t : Text = Text::new("Some text.");
 
@@ -228,6 +335,7 @@ mod tests {
         assert_eq!(format!("{}", t), "Some text");
         assert_eq!(t.line_lengths[0], t.text.chars().count().try_into().unwrap());
     }
+
     #[test]
     fn test_remove_characters() {
         let mut t : Text = Text::new("Some text.");
@@ -282,6 +390,17 @@ mod tests {
     }
 
     #[test]
+    fn test_line_length_getter_æøå() {
+        let t : Text = Text::new("Han bærer\nto bøker\npå føllen\nsin hjemover.");
+
+        assert_eq!(t.get_line_length(0),9);
+        assert_eq!(t.get_line_length(1),8);
+        assert_eq!(t.get_line_length(2),9);
+        assert_eq!(t.get_line_length(3),13);
+        assert_eq!(t.get_line_length(4),0);
+    }
+
+    #[test]
     fn test_check_line_count() {
         let t : Text = Text::new("This\nIs\nSome\nText.");
 
@@ -325,7 +444,35 @@ mod tests {
         let t : Text = Text::new("This\nIs\nSome\nText.");
 
         assert_eq!(t.get_string_index(0,4),4);
-        assert_eq!(t.get_string_index(1,3),8);
+        assert_eq!(t.get_string_index(1,2),7);
+        assert_eq!(t.get_string_index(2,4),12);
+        assert_eq!(t.get_string_index(3,5),18);
+    }
+
+    #[test]
+    fn test_get_index_start_of_line_æøå() {
+        let t : Text = Text::new("rårr\nbø\nbørs\nbønde");
+
+        assert_eq!(t.get_string_index(0,0),0);
+        assert_eq!(t.get_string_index(1,0),5);
+        assert_eq!(t.get_string_index(2,0),8);
+        assert_eq!(t.get_string_index(3,0),13);
+    }
+    #[test]
+    fn test_get_index_middle_of_line_æøå() {
+        let t : Text = Text::new("rårr\nbø\nbørs\nbønde");
+
+        assert_eq!(t.get_string_index(0,1),1);
+        assert_eq!(t.get_string_index(1,1),6);
+        assert_eq!(t.get_string_index(2,2),10);
+        assert_eq!(t.get_string_index(3,3),16);
+    }
+    #[test]
+    fn test_get_index_end_of_line_æøå() {
+        let t : Text = Text::new("rårr\nbø\nbørs\nbønde");
+
+        assert_eq!(t.get_string_index(0,4),4);
+        assert_eq!(t.get_string_index(1,2),7);
         assert_eq!(t.get_string_index(2,4),12);
         assert_eq!(t.get_string_index(3,5),18);
     }
@@ -336,7 +483,7 @@ mod tests {
         
         assert_eq!(t.get_line(0), "This");
         assert_eq!(t.get_line(1), "Is");
-        assert_eq!(t.get_line(2) "Some");
+        assert_eq!(t.get_line(2), "Some");
         assert_eq!(t.get_line(3), "Text.");
     }
 }

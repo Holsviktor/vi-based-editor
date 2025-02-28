@@ -192,9 +192,7 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
             stdout().execute(MoveTo(0,y)).unwrap();
             print!("{}", buffer.get_line(y as usize));
             stdout().execute(RestorePosition).unwrap();
-            //stdout().execute(terminal::Clear(ClearType::All)).unwrap();
             
-            //refresh_text(&buffer);
             INSERT
         },
         _ => INSERT
