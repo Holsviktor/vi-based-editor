@@ -68,6 +68,11 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
             stdout().execute(SetCursorStyle::BlinkingBar).unwrap();
             INSERT
         }
+        KeyCode::Char('I') => {
+            stdout().execute(SetCursorStyle::BlinkingBar).unwrap();
+            stdout().execute(MoveTo(0, y)).unwrap();
+            INSERT
+        }
         KeyCode::Char('h') => {
             if x >= 1 {
                 stdout().execute(MoveLeft(1)).unwrap();
