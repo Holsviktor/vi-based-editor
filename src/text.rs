@@ -77,10 +77,18 @@ impl Text {
         for linelength in &self.line_lengths[..line_no] {
             start_idx += linelength + 1;            
         }
-        start_idx = self.index_to_byteoffset(start_idx).unwrap();
+        start_idx = self
+            .index_to_byteoffset(start_idx)
+            .unwrap();
         let mut end_idx : usize = start_idx;
         if self.line_lengths[line_no] > 0 && line_no + 1 < self.line_lengths.len() {
-            end_idx += self.text[start_idx..].find('\n').unwrap();
+            match self.text[start_idx..]
+                .find('\n') {
+                Some(n_distance) => {
+                    end_idx += n_distance;
+                },
+                None => return &self.text[start_idx..],
+            }
         }
         else if line_no + 1 == self.line_lengths.len() {
             return &self.text[start_idx..]

@@ -45,7 +45,7 @@ fn refresh_text(buffer : &Text) {
 }
 
 fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
-    let x : u16; let y : u16;
+    let mut x : u16; let mut y : u16;
     match crossterm::cursor::position() {
         Ok((col, row)) => {
             x = col; y = row;
@@ -81,6 +81,30 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
             stdout().execute(MoveTo(0, y)).unwrap();
             INSERT
         }
+
+        KeyCode::Char('o') => {
+            let line_end : u16 = buffer.get_line_length(y as usize) as u16;
+            if line_end > 0 {
+                let _ = stdout().execute(MoveTo(line_end + 1, y));
+            }
+            match crossterm::cursor::position() {
+                Ok((col, row)) => {
+                    x = col; y = row;
+                }
+                Err(_) => {
+                    eprintln!("Error getting cursor position");
+                    return NORMAL;
+                }
+            }
+            let idx : usize = buffer.get_string_index(y as usize, x as usize);
+            let _ = buffer.write_char("\n", idx);
+            refresh_text(&buffer);
+            stdout().execute(MoveTo(0, y + 1)).unwrap();
+            stdout().execute(SetCursorStyle::BlinkingBar).unwrap();
+            stdout().flush().unwrap();
+            INSERT
+        }
+
         KeyCode::Char('h') => {
             if x >= 1 {
                 stdout().execute(MoveLeft(1)).unwrap();
