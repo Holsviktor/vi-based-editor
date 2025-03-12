@@ -60,7 +60,9 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
         KeyCode::Char('q') => -1,
 
         KeyCode::Char('a') => {
-            let _ = stdout().execute(MoveRight(1));
+            if x < buffer.get_line_length(y as usize) as u16 {
+                stdout().execute(MoveRight(1)).unwrap();
+            }
             stdout().execute(SetCursorStyle::BlinkingBar).unwrap();
             INSERT
         }
