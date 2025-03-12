@@ -282,7 +282,6 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
 
 fn main() -> std::io::Result<()> {
     let mut stdout = stdout();
-    let _guard = RawModeGuard::new();
     let args : Vec<String> = env::args().collect();
     let mut buffer: Text;
 
@@ -298,9 +297,11 @@ fn main() -> std::io::Result<()> {
         buffer = Text::new(&contents);
     }
     else {
-        buffer = Text::new("Usage: editor {filename}");
+        println!("Usage: editor {{filename}}");
+        std::process::exit(1);
     }
 
+    let _guard = RawModeGuard::new();
     stdout.execute(terminal::Clear(ClearType::All)).unwrap();
     //let (width, height) = terminal::size().unwrap();
     stdout.execute(MoveTo(0,0)).unwrap();
