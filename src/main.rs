@@ -113,6 +113,35 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
             INSERT
         }
 
+        KeyCode::Char('O') => {
+            match stdout().execute(MoveTo(0, y)) {
+                    Ok(_) => (),
+                    Err(_) => panic!("failed to move to start of line after O"),
+            }
+
+            match crossterm::cursor::position() {
+                Ok((col, row)) => {
+                    x = col; y = row;
+                }
+                Err(_) => {
+                    eprintln!("Error getting cursor position");
+                    return NORMAL;
+                }
+            }
+
+            let idx : usize = buffer.get_string_index(y as usize, x as usize);
+            match buffer.write_char("\n", idx) {
+                Ok(_) => (),
+                Err(e) => panic!("Failed writing \\n during 'O': {}\n",e),
+            }
+
+            refresh_text(&buffer);
+            stdout().execute(MoveTo(0, y)).unwrap();
+            stdout().execute(SetCursorStyle::BlinkingBar).unwrap();
+            stdout().flush().unwrap();
+            INSERT
+        }
+
         KeyCode::Char('h') => {
             if x >= 1 {
                 stdout().execute(MoveLeft(1)).unwrap();
