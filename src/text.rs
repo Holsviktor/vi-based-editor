@@ -77,9 +77,12 @@ impl Text {
         for linelength in &self.line_lengths[..line_no] {
             start_idx += linelength + 1;            
         }
-        start_idx = self
-            .index_to_byteoffset(start_idx)
-            .unwrap();
+        
+        match self
+            .index_to_byteoffset(start_idx) {
+            Some(o) => start_idx = o,
+            None => panic!("Failed to get byteoffset to line"),
+        }
         let mut end_idx : usize = start_idx;
         if self.line_lengths[line_no] > 0 && line_no + 1 < self.line_lengths.len() {
             match self.text[start_idx..]
@@ -145,8 +148,11 @@ impl Text {
     pub fn write_char<'a>(&mut self, c : &'a str, idx : usize) -> Result<&'a str, &'a str> {
         match c.chars().count() {
             1 => {
-                let offset : usize = self.index_to_byteoffset(idx)
-                    .expect("Failed to find offset at write-char");
+                let offset : usize;
+                match self.index_to_byteoffset(idx) {
+                    Some(o) => offset = o,
+                    None => return Err("invalid index"),
+                }
                 self.text.insert_str(offset, &c);
                 match c {
                     "\n" => {
@@ -495,3 +501,4 @@ mod tests {
         assert_eq!(t.get_line(3), "Text.");
     }
 }
+

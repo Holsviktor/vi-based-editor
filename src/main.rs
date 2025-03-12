@@ -85,7 +85,10 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
         KeyCode::Char('o') => {
             let line_end : u16 = buffer.get_line_length(y as usize) as u16;
             if line_end > 0 {
-                let _ = stdout().execute(MoveTo(line_end + 1, y));
+                match stdout().execute(MoveTo(line_end + 1, y)) {
+                    Ok(_) => (),
+                    Err(_) => panic!("failed to move to next line after o"),
+                }
             }
             match crossterm::cursor::position() {
                 Ok((col, row)) => {
@@ -97,7 +100,10 @@ fn handle_input_normal(code : KeyCode, buffer : &mut Text) -> i8 {
                 }
             }
             let idx : usize = buffer.get_string_index(y as usize, x as usize);
-            let _ = buffer.write_char("\n", idx);
+            match buffer.write_char("\n", idx - 1) {
+                Ok(_) => (),
+                Err(e) => panic!("Failed writing \\n during 'o': {}\n",e),
+            }
             refresh_text(&buffer);
             stdout().execute(MoveTo(0, y + 1)).unwrap();
             stdout().execute(SetCursorStyle::BlinkingBar).unwrap();
@@ -215,8 +221,15 @@ fn handle_input_insert(code : KeyCode, buffer : &mut Text) -> i8 {
             if buffer.size() < idx {
                 return INSERT;
             }
-            let _ = buffer.write_char(&c.to_string(), idx);
-            //print!("{}",c);
+            match buffer.write_char(&c.to_string(), idx) {
+                Ok(_) => (),
+                Err(_) => {
+                    let new_y : u16 = buffer.line_count() - 1;
+                    let new_x : u16 = buffer.get_line_length(new_y as usize + 1 ) as u16;
+                    MoveTo(new_x,new_y);
+                }
+            }
+            //print!("{}",c)
             //stdout().flush().unwrap();
             if c == '\n' {
                 stdout().execute(MoveTo(0, y+1)).unwrap();
